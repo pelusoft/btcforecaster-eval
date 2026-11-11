@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Scoring, model comparison and the v1 baseline model. No dependencies beyond .NET itself. -->
+  <PropertyGroup>
+    <RootNamespace>BtcForecaster.Eval</RootNamespace>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591;CS1573</NoWarn>
+  </PropertyGroup>
+
+</Project>

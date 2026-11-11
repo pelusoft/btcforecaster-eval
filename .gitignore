@@ -1,0 +1,44 @@
+# Build output
+[Bb]in/
+[Oo]bj/
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Ll]og/
+[Ll]ogs/
+artifacts/
+publish/
+*.nupkg
+*.snupkg
+
+# Test results and coverage
+[Tt]est[Rr]esult*/
+*.trx
+coverage*.json
+coverage*.xml
+*.coverage
+
+# IDEs and editors
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.swp
+.DS_Store
+Thumbs.db
+
+# Local configuration and secrets (none are needed; never commit them)
+*.env
+.env*
+appsettings.*.local.json
+secrets.json
+
+# Downloaded market data: never committed (see README, "What's not here")
+data/cache/
+
+# Files written by the CLI
+*.out.csv

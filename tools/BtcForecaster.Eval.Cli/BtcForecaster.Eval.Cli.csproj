@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Command line: score a forecasts CSV, download public Binance bars, run the v1 baseline walk-forward, compare two variants. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>btcf-eval</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\BtcForecaster.Eval\BtcForecaster.Eval.csproj" />
+  </ItemGroup>
+
+</Project>
