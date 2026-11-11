@@ -19,5 +19,5 @@ jobs:
         run: dotnet restore
       - name: Build
         run: dotnet build --no-restore -c Release
-      - name: Test (offline: sample data and synthetic prices only)
+      - name: Test (offline, sample data and synthetic prices only)
         run: dotnet test --no-build -c Release --verbosity normal
