@@ -1,8 +1,9 @@
 # Study: volatility-conditioned calibration (pre-registration)
 
-> **Status: holdout not run yet.** This note fixes every choice before the June–October holdout is scored, so the result can't
-> be steered by it. The holdout result will be added below without changing anything above it. Unlike the
-> [outside data study](outside-data-rejected.md), this one is built on the v1 baseline and can be re-run from this repository.
+> **Status: holdout run on 12 November 2026. It passes at 1h only (−2.42% vs v1); see [Holdout result](#holdout-result).**
+> Everything from "Question" to "Holdout: what will be run" was written and committed before the June–October holdout was
+> scored, so the result couldn't steer it. Unlike the [outside data study](outside-data-rejected.md), this one is built on
+> the v1 baseline and can be re-run from this repository.
 
 Written 12 November 2026.
 
@@ -70,4 +71,28 @@ v1 may come from something v2's HAR model already handles. **What a fail means:*
 
 ## Holdout result
 
-*Not run yet.*
+Run once on 12 November 2026, after the choices above were committed, with exactly the command above.
+**Result: passes the decision rule, on the strength of 1h alone.**
+
+| Horizon | v1 | Candidate | Change | p (DM) | 90% held (±m) | 50% held (±m) |
+|---|---|---|---|---|---|---|
+| 1h | 2.721 | 2.655 | **−2.42%** | < 0.001 | 89.4 (±1.0) | 50.0 (±1.6) |
+| 4h | 5.366 | 5.375 | +0.17% | 0.73 | 89.6 (±1.9) | 50.8 (±3.2) |
+| 24h | 15.119 | 15.119 | 0.00% | – | 88.8 (±4.8) | 51.0 (±7.9) |
+
+Rule 1 passes at 1h (≥ 2% better, p < 0.05); rule 2 passes (no horizon worse by more than 1%); rule 3 passes (coverage within
+margin95 everywhere); rule 4 passes (the 1h gain is spread over the months).
+
+For reference, the same run's tuning half (January–May, the period the choices were made on): 1h −3.13% (p < 0.001),
+4h −1.66% (p 0.02), 24h unchanged.
+
+## In plain English
+
+Calibrating each forecast on past moments of similar volatility makes v1's 1-hour ranges about 2.4% better on five months it
+never saw, with the hit rates still on target. It clears the 2% bar, but not by much.
+
+The 4-hour gain seen on January–May (−1.7%) did not hold up on June–October (+0.2%), so at 4h the conditioning is harmless
+but does nothing.
+
+This is a gain over v1, not over v2. Next step, as decided in advance: try the same conditioning inside v2 at 1h, against
+v2, with the same split and decision rule. Until that passes, the live model doesn't change.
