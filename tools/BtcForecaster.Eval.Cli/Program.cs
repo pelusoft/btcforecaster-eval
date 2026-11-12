@@ -5,7 +5,8 @@ using BtcForecaster.Eval.Data;
 using BtcForecaster.Eval.Scoring;
 
 // btcf-eval: score forecasts the way BtcForecaster does, and test model changes the way its studies do.
-//   score <forecasts.csv>                               coverage, margins and interval scores per horizon
+//   score <forecasts.csv> [--by-volatility]             coverage, margins and interval scores per horizon
+//                                                      (+ misses by volatility bucket and tail; downloads bars)
 //   download --from 2026-06-01 --to 2026-07-01          public Binance BTC/USDT 5-minute bars into data/cache
 //   baseline --from 2026-06-01 --to 2026-07-01          replay the v1 baseline and score it
 //   compare  --from 2026-01-01 --to 2026-07-01 --half-life 60
@@ -17,7 +18,7 @@ try
 {
     return command switch
     {
-        "score" => ScoreFile(args.Length > 1 ? args[1] : throw new ArgumentException("score needs a CSV file, e.g. data/sample/forecasts-v2-har-20261103-20261110.csv")),
+        "score" => await ScoreFile(args.Length > 1 ? args[1] : throw new ArgumentException("score needs a CSV file, e.g. data/sample/forecasts-v2-har-20261103-20261110.csv")),
         "download" => await Download(),
         "baseline" => await Baseline(),
         "compare" => await Compare(),
@@ -36,6 +37,7 @@ int Usage()
         btcf-eval: score forecasts the way BtcForecaster does.
 
           score <forecasts.csv>                          Coverage, margin95 and interval scores per horizon.
+                [--by-volatility]                        Also misses by side of the 90% range and volatility at forecast time.
           download --from YYYY-MM-DD --to YYYY-MM-DD     Public Binance BTC/USDT 5-minute bars into the local cache.
           baseline --from ... --to ... [--stride 15]     Replay the v1 baseline over the period and score it.
           compare  --from ... --to ... [--half-life 60]  Tune on the first half, test once on the second: a v1 variant vs v1.
@@ -47,13 +49,47 @@ int Usage()
     return 1;
 }
 
-int ScoreFile(string path)
+async Task<int> ScoreFile(string path)
 {
     var records = ForecastCsv.Read(path);
     Console.WriteLine($"{path}: {records.Count:N0} forecasts ({records.Count(r => r.IsScored):N0} scored), models {string.Join(", ", records.Select(r => r.ModelRelease).Distinct())}");
     Console.WriteLine();
     Print(records);
+    if (options.ContainsKey("by-volatility")) await PrintByVolatility(records);
     return 0;
+}
+
+// Needs 30 days + 24 hours of bars before the first forecast, so this one downloads (into the cache) unlike plain score.
+async Task PrintByVolatility(IReadOnlyList<ForecastRecord> records)
+{
+    if (records.Count == 0) return;
+    var from = records.Min(r => r.ForecastMadeUtc) - TimeSpan.FromDays(32);
+    var to = records.Max(r => r.ForecastMadeUtc) + TimeSpan.FromMinutes(5);
+    var bars = await new BinanceBars(Cache()).LoadAsync(from, to, Console.Error.WriteLine);
+    var bucketAt = VolatilityBuckets.Classifier(bars);
+
+    Console.WriteLine();
+    Console.WriteLine("Misses of the 90% range by volatility at forecast time (calm <= 0.738 < normal <= 1.126 < active: last 24h");
+    Console.WriteLine("realised variance / its 30-day median, terciles fixed on Jan-May 2026). Each side should hold 95%.");
+    Console.WriteLine($"{"Horizon",-8}{"Bucket",-8}{"n",7}{"n_eff",7}  {"Below: miss",11}  {"held (±m)",-15}{"avg",8}  {"Above: miss",11}  {"held (±m)",-15}{"avg",8}");
+    foreach (var minutes in records.Select(r => r.HorizonMinutes).Distinct().Order())
+    {
+        var report = VolatilityBuckets.ForHorizon(records, minutes, bucketAt);
+        foreach (var bucket in report.Cells.GroupBy(c => c.Bucket))
+        {
+            var below = bucket.Single(c => c.Tail == "below");
+            var above = bucket.Single(c => c.Tail == "above");
+            Console.WriteLine($"{(bucket.Key == "calm" ? minutes / 60 + "h" : ""),-8}{bucket.Key,-8}{below.Samples,7:N0}{below.EffectiveSamples,7:F1}  " +
+                $"{below.Misses,11}  {Held(below),-15}{Avg(below),8}  {above.Misses,11}  {Held(above),-15}{Avg(above),8}");
+        }
+        if (report.Unclassified > 0) Console.WriteLine($"{"",-8}{report.Unclassified:N0} forecast(s) without 31 days of bars before them left out");
+    }
+    Console.WriteLine("held = share not beyond that edge; avg = mean distance beyond the edge, % of price. ! = outside its margin.");
+
+    static string Held(VolatilityTailCell c) => c.TailCoveragePct is { } v
+        ? $"{v:F1} (±{c.Margin95:F1}){(Math.Abs(v - VolatilityBuckets.TailTargetPct) > c.Margin95 ? " !" : "")}"
+        : "-";
+    static string Avg(VolatilityTailCell c) => c.MeanSignedMissPct is { } v ? v.ToString("+0.00;-0.00", CultureInfo.InvariantCulture) + "%" : "-";
 }
 
 async Task<int> Download()
@@ -204,10 +240,15 @@ double Double(string name, double fallback) =>
 
 string Cache() => options.TryGetValue("cache", out var c) ? c : Path.Combine("data", "cache");
 
+// "--name value" pairs; a "--name" followed by another option (or nothing) is a flag.
 static Dictionary<string, string> Options(string[] a)
 {
     var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-    for (var i = 0; i < a.Length - 1; i++)
-        if (a[i].StartsWith("--")) result[a[i][2..]] = a[++i];
+    for (var i = 0; i < a.Length; i++)
+    {
+        if (!a[i].StartsWith("--")) continue;
+        var hasValue = i + 1 < a.Length && !a[i + 1].StartsWith("--");
+        result[a[i][2..]] = hasValue ? a[++i] : "true";
+    }
     return result;
 }

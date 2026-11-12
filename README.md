@@ -8,7 +8,7 @@ BtcForecaster is a free website that shows how far the Bitcoin price is likely t
 
 | Folder | What's in it |
 |---|---|
-| `src/BtcForecaster.Eval/Scoring` | Hit rate (coverage) per range and horizon, effective sample size and `margin95`, interval score (combined, 90%, 50%), misses above and below, daily and rolling 7-day breakdowns |
+| `src/BtcForecaster.Eval/Scoring` | Hit rate (coverage) per range and horizon, effective sample size and `margin95`, interval score (combined, 90%, 50%), misses above and below, daily and rolling 7-day breakdowns, misses by volatility bucket and side |
 | `src/BtcForecaster.Eval/Comparison` | Diebold-Mariano test with Newey-West (HAC) errors, walk-forward splits (tune on one period, test once on a later one), and the pre-registered decision rule |
 | `src/BtcForecaster.Eval/Baseline` | The v1 baseline model (`v1-baseline`): calibrated volatility ranges around the current price |
 | `src/BtcForecaster.Eval/Data` | A downloader for public Binance BTC/USDT 5-minute bars, cached locally |
@@ -76,6 +76,15 @@ interval score = (upper − lower) + (2 ÷ α) × (lower − actual, if below) +
 BtcForecaster reports it as a percentage of the price, averaged over forecasts, for each range and for the two added together ("combined"). Lower is better.
 
 > A 90% range from 99 to 101 (width 2): if the price ends at 100, the score is 2. If it ends at 102, one point above, the score is 2 + 20 × 1 = 22.
+
+### Misses by side and volatility
+
+A 90% range should leave about 5% of outcomes below it and 5% above, in quiet markets and busy ones alike. Live-stats'
+`byVolatilityBucket` block (and `btcf-eval score --by-volatility`) splits the misses by side and by conditions when the
+forecast was made: calm, normal or active, from the last 24 hours' realised variance ÷ its median over the trailing 30 days,
+at thresholds fixed on January–May 2026. For each it gives the misses, the share held on that side (target 95%, with its
+margin from the effective sample size) and the average miss size as a % of the price. An example is in
+[the sample notes](data/sample/README.md#misses-by-side-and-volatility). It is reporting only: no forecast or score changes.
 
 ### Is a new model really better?
 
