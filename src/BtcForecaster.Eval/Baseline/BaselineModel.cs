@@ -6,10 +6,12 @@ namespace BtcForecaster.Eval.Baseline;
 /// Settings of the v1 baseline, as BtcForecaster ships them: 6-hour warm-up, a 15-minute volatility half-life at 1 hour scaled
 /// with the horizon (60 minutes at 4 hours, capped at 6 hours at 24 hours), 7 days of calibration at 1 hour and 14 days for
 /// longer horizons, and the time-of-day adjustment at 4 and 24 hours (it made no consistent difference at 1 hour).
+/// <see cref="VolConditioningFraction"/> is a candidate, off in v1: see <see cref="VolatilityBand.NearestInVolatility"/>.
+/// It applies at <see cref="VolConditioningHorizonsHours"/> only, or at every horizon when that is null.
 /// </summary>
 public sealed record BaselineSettings(
     int LookbackHours = 6, int HalfLifeMinutes = 15, int CalibrationDays = 7, int LongHorizonCalibrationDays = 14,
-    int[]? SeasonalHorizonsHours = null)
+    int[]? SeasonalHorizonsHours = null, double VolConditioningFraction = 0, int[]? VolConditioningHorizonsHours = null)
 {
     public static readonly BaselineSettings Default = new(SeasonalHorizonsHours: [4, 24]);
 
@@ -28,6 +30,11 @@ public sealed record BaselineSettings(
         : TimeSpan.FromDays(CalibrationDays);
 
     public bool SeasonalFor(TimeSpan horizon) => (SeasonalHorizonsHours ?? []).Any(h => TimeSpan.FromHours(h) == horizon);
+
+    public double VolConditioningFor(TimeSpan horizon) =>
+        VolConditioningHorizonsHours is null || VolConditioningHorizonsHours.Any(h => TimeSpan.FromHours(h) == horizon)
+            ? VolConditioningFraction
+            : 0;
 
     public TimeSpan HistoryFor(TimeSpan horizon) => VolatilityBand.RequiredHistory(Lookback, horizon, CalibrationWindowFor(horizon));
 }
@@ -49,7 +56,8 @@ public sealed class BaselineModel(BaselineSettings? settings = null)
         if (history.Count == 0 || history[^1].Timestamp > createdAt) return null;
         var centre = history[^1].Price;
         var distribution = VolatilityBand.Distribution(history, createdAt, horizon, Settings.Lookback,
-            Settings.CalibrationWindowFor(horizon), Settings.HalfLifeFor(horizon), Settings.SeasonalFor(horizon));
+            Settings.CalibrationWindowFor(horizon), Settings.HalfLifeFor(horizon), Settings.SeasonalFor(horizon),
+            Settings.VolConditioningFor(horizon));
         return distribution is null ? null : (centre, distribution.RangeAround(centre));
     }
 }

@@ -39,6 +39,8 @@ int Usage()
           download --from YYYY-MM-DD --to YYYY-MM-DD     Public Binance BTC/USDT 5-minute bars into the local cache.
           baseline --from ... --to ... [--stride 15]     Replay the v1 baseline over the period and score it.
           compare  --from ... --to ... [--half-life 60]  Tune on the first half, test once on the second: a v1 variant vs v1.
+                   [--vol-conditioning 0.33]             Variant: calibrate on the past outcomes nearest in volatility.
+                   [--vol-conditioning-horizons 1,4]     ...at these horizons only (default: all).
 
         Options: --cache <dir> (default data/cache), --out <file.csv> (baseline: write the forecasts).
         """);
@@ -87,12 +89,26 @@ async Task<int> Compare()
     var (from, to) = Period();
     var stride = TimeSpan.FromMinutes(Int("stride", 15));
     var baseline = new BaselineModel();
-    var candidate = new BaselineModel(BaselineSettings.Default with { HalfLifeMinutes = Int("half-life", 60) });
+    // --vol-conditioning on its own tests just that; --half-life on its own (default 60) keeps the original comparison.
+    var conditioning = Double("vol-conditioning", 0);
+    var halfLife = Int("half-life", conditioning > 0 ? baseline.Settings.HalfLifeMinutes : 60);
+    int[]? conditioningHours = options.TryGetValue("vol-conditioning-horizons", out var hs)
+        ? hs.Split(',').Select(h => int.Parse(h.Trim().TrimEnd('h'), CultureInfo.InvariantCulture)).ToArray()
+        : null;
+    var candidate = new BaselineModel(BaselineSettings.Default with
+    {
+        HalfLifeMinutes = halfLife, VolConditioningFraction = conditioning, VolConditioningHorizonsHours = conditioningHours,
+    });
     var split = WalkForward.Halves(from, to);
     var bars = await LoadBars(from, to, baseline.Settings);
     var rule = new DecisionRule();
 
-    Console.WriteLine($"Candidate: v1 with a {candidate.Settings.HalfLifeMinutes}-minute half-life; baseline: v1 ({baseline.Settings.HalfLifeMinutes} minutes).");
+    var changes = new List<string>();
+    if (halfLife != baseline.Settings.HalfLifeMinutes) changes.Add($"a {halfLife}-minute half-life");
+    if (conditioning > 0)
+        changes.Add($"calibration on the nearest {conditioning:P0} of past outcomes by volatility" +
+            (conditioningHours is null ? "" : $" at {string.Join(", ", conditioningHours.Select(h => h + "h"))} only"));
+    Console.WriteLine($"Candidate: v1 with {(changes.Count > 0 ? string.Join(" and ", changes) : "no changes")}; baseline: v1 as shipped.");
     Console.WriteLine($"Tune on {split.Tune}, then test once on {split.Test}. Decision rule fixed in advance: {rule}.");
     foreach (var (label, period) in new[] { ("Tuning half", split.Tune), ("Holdout (scored once)", split.Test) })
     {
@@ -182,6 +198,9 @@ void WriteCsv(string path, IEnumerable<ForecastRecord> records)
 }
 
 int Int(string name, int fallback) => options.TryGetValue(name, out var v) ? int.Parse(v, CultureInfo.InvariantCulture) : fallback;
+
+double Double(string name, double fallback) =>
+    options.TryGetValue(name, out var v) ? double.Parse(v, CultureInfo.InvariantCulture) : fallback;
 
 string Cache() => options.TryGetValue("cache", out var c) ? c : Path.Combine("data", "cache");
 

@@ -57,9 +57,14 @@ public static class VolatilityBand
     /// <param name="calibrationWindow">How far back to measure past outcomes; zero = bell-curve multipliers.</param>
     /// <param name="volatilityHalfLife">Exponential weighting half-life; zero = equal weights over the lookback.</param>
     /// <param name="seasonal">Adjust for typical activity by UTC hour of day (needs calibration history).</param>
+    /// <param name="volConditioning">
+    /// Fraction of past outcomes to calibrate on, keeping those whose volatility at the time was closest to now's; zero = all of
+    /// them (v1). See <see cref="NearestInVolatility"/>.
+    /// </param>
     public static MoveDistribution? Distribution(
         IReadOnlyList<PriceSample> history, DateTime createdAt, TimeSpan horizon,
-        TimeSpan lookback, TimeSpan calibrationWindow = default, TimeSpan volatilityHalfLife = default, bool seasonal = false)
+        TimeSpan lookback, TimeSpan calibrationWindow = default, TimeSpan volatilityHalfLife = default, bool seasonal = false,
+        double volConditioning = 0)
     {
         var volBars = (int)(lookback / BarSize);
         var steps = Math.Max(1, (int)Math.Ceiling(horizon / BarSize));
@@ -102,8 +107,34 @@ public static class VolatilityBand
         // variance over bars j+1..j+steps = per-bar level at j * the activity those bars usually have
         double SigmaHorizonAt(int j) => Math.Sqrt(variance[j] * (weightSums[j + steps + 1] - weightSums[j + 1]));
 
-        var ratios = calibrate ? CalibrationRatios(bars, volBars, steps, SigmaHorizonAt) : null;
+        double[]? ratios = null;
+        if (calibrate)
+        {
+            var past = CalibrationSamples(bars, volBars, steps, SigmaHorizonAt, variance);
+            if (past.Count >= MinCalibrationSamples)
+                ratios = volConditioning > 0 && variance[n - 1] > 0
+                    ? NearestInVolatility(past, variance[n - 1], volConditioning)
+                    : past.Select(p => p.Ratio).Order().ToArray();
+        }
         return new MoveDistribution(SigmaHorizonAt(n - 1), ratios);
+    }
+
+    /// <summary>
+    /// Volatility-conditioned calibration: of the past outcomes, keep the <paramref name="fraction"/> whose per-bar variance at
+    /// the time was closest (on a log scale) to <paramref name="currentVariance"/>, but never fewer than
+    /// <see cref="MinCalibrationSamples"/>. Returns their ratios sorted ascending.
+    /// <para>
+    /// The idea: if Bitcoin's standardised moves have a different shape in calm and volatile spells (e.g. the 50% range too wide
+    /// when calm and too narrow when wild), calibrating on similar spells fixes the shape without a separate model per regime.
+    /// One setting, and it falls back smoothly: fraction 1 is plain v1.
+    /// </para>
+    /// </summary>
+    public static double[] NearestInVolatility(IReadOnlyList<(double Ratio, double Variance)> past, double currentVariance, double fraction)
+    {
+        var keep = Math.Clamp((int)Math.Round(past.Count * fraction), Math.Min(MinCalibrationSamples, past.Count), past.Count);
+        var target = Math.Log(currentVariance);
+        return past.OrderBy(p => Math.Abs(Math.Log(p.Variance) - target))
+            .Take(keep).Select(p => p.Ratio).Order().ToArray();
     }
 
     /// <summary>
@@ -151,20 +182,20 @@ public static class VolatilityBand
         return variance;
     }
 
-    // |log move over the horizon / sigma predicted at its start| for every past bar whose outcome is already known, sorted.
-    private static double[]? CalibrationRatios(double[] bars, int volBars, int steps, Func<int, double> sigmaHorizonAt)
+    // For every past bar whose outcome is already known: |log move over the horizon / sigma predicted at its start|,
+    // and the per-bar variance at that start (what volConditioning matches on).
+    private static List<(double Ratio, double Variance)> CalibrationSamples(
+        double[] bars, int volBars, int steps, Func<int, double> sigmaHorizonAt, double[] variance)
     {
         var last = bars.Length - 1;
-        var ratios = new List<double>(Math.Max(0, last - steps - volBars + 1));
+        var samples = new List<(double, double)>(Math.Max(0, last - steps - volBars + 1));
         for (var j = volBars; j + steps <= last; j++)
         {
             var sigma = sigmaHorizonAt(j);
-            if (sigma <= 0) continue;
-            ratios.Add(Math.Abs(Math.Log(bars[j + steps] / bars[j])) / sigma);
+            if (sigma <= 0 || variance[j] <= 0) continue;
+            samples.Add((Math.Abs(Math.Log(bars[j + steps] / bars[j])) / sigma, variance[j]));
         }
-        if (ratios.Count < MinCalibrationSamples) return null;
-        ratios.Sort();
-        return ratios.ToArray();
+        return samples;
     }
 
     /// <summary>Linear-interpolated quantile; <paramref name="sorted"/> must be ascending.</summary>
