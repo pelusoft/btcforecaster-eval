@@ -71,7 +71,7 @@ public static class WalkForwardRunner
         var result = new List<ForecastRecord>();
         foreach (var slot in slots)
         {
-            var end = UpperBound(times, slot);                       // bars[..end] are at or before the slot
+            var end = UpperBound(times, slot); // bars[..end] are at or before the slot
             var start = LowerBound(times, slot - historyNeeded - VolatilityBand.BarSize * 2);
             if (end - start < 2) continue;
             var history = new ArraySegment<PriceSample>(array, start, end - start);

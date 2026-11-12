@@ -24,21 +24,21 @@ public class ScoringTests
     [Fact]
     public void Margin95_uses_the_effective_sample_size()
     {
-        // 90% target, 2016 forecasts, overlap 12: n_eff = 168, margin = 1.96 × √(0.09 / 168) × 100 = 4.5365…
+        // 90% target, 2016 forecasts, overlap 12: n_eff = 168, margin = 1.96 * sqrt(0.09 / 168) * 100 = 4.5365
         Assert.Equal(1.96 * Math.Sqrt(0.9 * 0.1 / 168) * 100, Score.Margin95(90, 2016, 12), 12);
         Assert.Equal(4.5365, Score.Margin95(90, 2016, 12), 4);
         // Same forecasts at 24 hours: n_eff = 7, about ±22 points.
         Assert.Equal(22.22, Score.Margin95(90, 2016, 288), 2);
-        // Ignoring the overlap would claim a margin √12 times too small.
+        // Ignoring the overlap would give a margin sqrt(12) times too small.
         Assert.Equal(Score.Margin95(90, 2016, 12) / Math.Sqrt(12), Score.Margin95(90, 2016, 1), 12);
     }
 
     [Theory]
     [InlineData(99, 101, 100, 90, 2)]                 // inside: just the width
     [InlineData(99, 101, 99, 90, 2)]                  // on the edge counts as inside
-    [InlineData(99, 101, 102, 90, 2 + 20 * 1)]        // 1 above a 90% range: + (2 ÷ 0.1) × 1
+    [InlineData(99, 101, 102, 90, 2 + 20 * 1)]        // 1 above a 90% range: + (2 / 0.1) * 1
     [InlineData(99, 101, 97, 90, 2 + 20 * 2)]         // 2 below
-    [InlineData(99.5, 100.5, 101.5, 50, 1 + 4 * 1)]   // 50% range: penalty (2 ÷ 0.5) = 4 per unit
+    [InlineData(99.5, 100.5, 101.5, 50, 1 + 4 * 1)]   // 50% range: penalty (2 / 0.5) = 4 per unit
     public void Interval_score_is_width_plus_scaled_miss_distance(double lo, double hi, double actual, double level, double expected) =>
         Assert.Equal(expected, Score.IntervalScore(lo, hi, actual, level), 10);
 
@@ -65,7 +65,7 @@ public class ScoringTests
         Assert.Equal(2.0, r.Range90.MeanWidthPct, 10);
         Assert.Equal(1.0, r.Range50.EffectiveSamples, 10);
         Assert.Equal(Score.Margin95(90, 5, 12), r.Range90.Margin95, 12);
-        // IS90 per forecast (% of 100): 2, 2, 2 + 20 × 0.5, 2 + 20 × 1, 2.
+        // IS90 per forecast (% of 100): 2, 2, 2 + 20*0.5, 2 + 20*1, 2
         Assert.Equal((2 + 2 + 12 + 22 + 2) / 5.0, r.IntervalScore90Pct!.Value, 10);
         Assert.Equal(r.IntervalScore90Pct + r.IntervalScore50Pct, r.IntervalScorePct);
         Assert.Single(r.Daily);
@@ -81,8 +81,8 @@ public class ScoringTests
         var rolling = Evaluation.Rolling(records, 12, 7);
 
         Assert.Equal(10, rolling.Count);
-        Assert.All(rolling.Take(5), w => Assert.Equal(100, w.Hit90Pct));            // the misses from day 6 on aren't seen earlier
-        Assert.Equal(100.0 * 2 / 7, rolling[^1].Hit90Pct!.Value, 10);                 // last window: days 4–10, 2 of 7 inside
+        Assert.All(rolling.Take(5), w => Assert.Equal(100, w.Hit90Pct)); // misses from day 6 on mustn't leak into earlier windows
+        Assert.Equal(100.0 * 2 / 7, rolling[^1].Hit90Pct!.Value, 10);  // last window: days 4-10, 2 of 7 inside
         Assert.False(rolling[0].FullWindow);
         Assert.True(rolling[7].FullWindow);
     }

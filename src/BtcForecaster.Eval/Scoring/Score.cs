@@ -1,22 +1,20 @@
 namespace BtcForecaster.Eval.Scoring;
 
-/// <summary>
-/// The building blocks BtcForecaster scores itself with. Pure functions, no I/O; the same formulas as the live site.
-/// </summary>
+/// <summary>Scoring formulas, identical to the ones the live site uses. Pure functions, no I/O.</summary>
 public static class Score
 {
     /// <summary>
     /// Forecasts made every few minutes overlap: with a forecast every 5 minutes and a 1-hour horizon, 12 consecutive forecasts
-    /// share each outcome window, so they are far from independent. The effective sample size is n ÷ overlap (at least 1).
+    /// share each outcome window, so they are far from independent. The effective sample size is n / overlap (at least 1).
     /// </summary>
     public static double EffectiveSampleSize(int n, int overlap) => Math.Max(1.0, (double)n / Math.Max(1, overlap));
 
-    /// <summary>Overlap for a horizon and forecast interval: horizon ÷ interval (12 for 1 hour every 5 minutes; 288 for 24 hours).</summary>
+    // horizon / interval: 12 for 1h every 5 minutes, 288 for 24h.
     public static int Overlap(int horizonMinutes, int intervalMinutes = 5) => Math.Max(1, horizonMinutes / Math.Max(1, intervalMinutes));
 
     /// <summary>
     /// 95% margin of error, in percentage points, for a hit rate whose true value is <paramref name="targetPct"/>:
-    /// 1.96 × √(p(1 − p) / n_eff) × 100, with n_eff = n ÷ overlap. A range is calibrated when |hit rate − target| ≤ margin95.
+    /// 1.96 * sqrt(p(1 - p) / n_eff) * 100, with n_eff = n / overlap. A range is calibrated when |hit rate - target| &lt;= margin95.
     /// </summary>
     public static double Margin95(double targetPct, int n, int overlap = 1)
     {
@@ -26,7 +24,7 @@ public static class Score
 
     /// <summary>
     /// Interval score (Gneiting &amp; Raftery 2007) of a central range at <paramref name="levelPct"/>: its width, plus
-    /// (2 ÷ α) × how far outside the range the price landed, with α = 1 − level. Lower is better; same units as the prices.
+    /// (2 / alpha) * how far outside the range the price landed, with alpha = 1 - level. Lower is better; same units as the prices.
     /// It rewards narrow ranges but punishes misses in proportion to their size, so a forecaster can't game it by being
     /// too narrow (big penalties) or too wide (big widths).
     /// </summary>

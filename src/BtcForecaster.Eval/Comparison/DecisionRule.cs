@@ -1,4 +1,4 @@
-namespace BtcForecaster.Eval.Comparison; //test
+namespace BtcForecaster.Eval.Comparison;
 
 /// <summary>A candidate against the current model at one horizon, on the holdout.</summary>
 /// <param name="ChangePct">Combined interval score change vs the baseline, % (negative = better).</param>
@@ -8,7 +8,6 @@ namespace BtcForecaster.Eval.Comparison; //test
 /// <param name="MonthGains">Total score reduction per calendar month (positive = the candidate did better that month).</param>
 public sealed record HorizonComparison(int HorizonMinutes, double ChangePct, double PValue, bool Calibrated90, bool Calibrated50, IReadOnlyList<double> MonthGains);
 
-/// <summary>The verdict and which rules passed.</summary>
 public sealed record Verdict(bool Passes, bool Rule1, bool Rule2, bool Rule3, bool Rule4, IReadOnlyList<int> WinningHorizons);
 
 /// <summary>

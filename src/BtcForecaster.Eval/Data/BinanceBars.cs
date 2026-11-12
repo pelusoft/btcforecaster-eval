@@ -45,7 +45,7 @@ public sealed class BinanceBars(string cacheDir, HttpClient? http = null)
                 bars = ReadCsv(path);
             else
             {
-                log?.Invoke($"Downloading {Symbol} 5m bars for {month:yyyy-MM} from {BaseUrl} …");
+                log?.Invoke($"Downloading {Symbol} 5m bars for {month:yyyy-MM} from {BaseUrl}...");
                 bars = await DownloadAsync(month, complete ? monthEnd : DateTime.UtcNow, ct);
                 if (complete) WriteCsv(path, bars); // a month still in progress is fetched again next time
             }

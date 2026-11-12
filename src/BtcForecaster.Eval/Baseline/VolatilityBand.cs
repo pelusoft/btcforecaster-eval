@@ -12,7 +12,7 @@ public sealed record PriceRange(double Lower90, double Upper90, double Lower50, 
 /// a bell curve.
 /// </summary>
 /// <param name="Sigma">Forecast standard deviation of the log move to the horizon.</param>
-/// <param name="SortedAbsRatios">Past |log move ÷ σ predicted at the time|, ascending; null = bell curve.</param>
+/// <param name="SortedAbsRatios">Past |log move / sigma predicted at the time|, ascending; null = bell curve.</param>
 public sealed record MoveDistribution(double Sigma, double[]? SortedAbsRatios)
 {
     public bool IsCalibrated => SortedAbsRatios is not null;
@@ -30,10 +30,10 @@ public sealed record MoveDistribution(double Sigma, double[]? SortedAbsRatios)
 /// <summary>
 /// The v1 baseline's ranges (BtcForecaster's <c>v1-baseline</c>), in two steps:
 /// <list type="number">
-/// <item>Scale: an exponentially weighted σ of 5-minute log returns, projected to the horizon. Optionally seasonal: returns are
+/// <item>Scale: an exponentially weighted sigma of 5-minute log returns, projected to the horizon. Optionally seasonal: returns are
 /// first divided by the typical activity of their UTC hour, and the forecast adds up the typical activity of the hours the
 /// horizon covers.</item>
-/// <item>Shape: the empirical |past move ÷ σ predicted at the time| over the calibration window, which captures Bitcoin's fat
+/// <item>Shape: the empirical |past move / sigma predicted at the time| over the calibration window, which captures Bitcoin's fat
 /// tails. Falls back to a bell curve without at least a day of outcomes.</item>
 /// </list>
 /// Only prices up to <c>createdAt</c> are used. The ranges are symmetric (on a log scale) around the centre and deliberately not
@@ -49,12 +49,11 @@ public static class VolatilityBand
 
     public static readonly TimeSpan BarSize = TimeSpan.FromMinutes(5);
 
-    /// <summary>History needed for the full calibration window.</summary>
     public static TimeSpan RequiredHistory(TimeSpan lookback, TimeSpan horizon, TimeSpan calibrationWindow) =>
         calibrationWindow + lookback + horizon + BarSize * 2;
 
     /// <param name="history">Prices up to <paramref name="createdAt"/> (never later), oldest first.</param>
-    /// <param name="lookback">Warm-up window for σ (or the whole equal-weight window when the half-life is zero).</param>
+    /// <param name="lookback">Warm-up window for sigma (or the whole equal-weight window when the half-life is zero).</param>
     /// <param name="calibrationWindow">How far back to measure past outcomes; zero = bell-curve multipliers.</param>
     /// <param name="volatilityHalfLife">Exponential weighting half-life; zero = equal weights over the lookback.</param>
     /// <param name="seasonal">Adjust for typical activity by UTC hour of day (needs calibration history).</param>
@@ -100,7 +99,7 @@ public static class VolatilityBand
 
         var weightSums = new double[weight.Length + 1];
         for (var k = 0; k < weight.Length; k++) weightSums[k + 1] = weightSums[k] + weight[k];
-        // Variance over bars j+1 … j+steps = per-bar level at j × the activity those bars usually have.
+        // variance over bars j+1..j+steps = per-bar level at j * the activity those bars usually have
         double SigmaHorizonAt(int j) => Math.Sqrt(variance[j] * (weightSums[j + steps + 1] - weightSums[j + 1]));
 
         var ratios = calibrate ? CalibrationRatios(bars, volBars, steps, SigmaHorizonAt) : null;
@@ -139,7 +138,7 @@ public static class VolatilityBand
         return mean;
     }
 
-    /// <summary>v_i = λ·v_(i−1) + (1 − λ)·x_i with λ = 0.5^(bar ÷ half-life), seeded with the plain mean of the warm-up values.</summary>
+    // v[i] = lambda * v[i-1] + (1 - lambda) * x[i], lambda = 0.5^(bar / halfLife); seeded with the plain mean of the warm-up values.
     private static double[] EwmaOfSquares(double[] squared, int warmup, TimeSpan halfLife)
     {
         var lambda = Math.Pow(0.5, BarSize / halfLife);
@@ -152,7 +151,7 @@ public static class VolatilityBand
         return variance;
     }
 
-    /// <summary>|log move over the horizon ÷ σ predicted at its start| for every past bar whose outcome is already known, sorted.</summary>
+    // |log move over the horizon / sigma predicted at its start| for every past bar whose outcome is already known, sorted.
     private static double[]? CalibrationRatios(double[] bars, int volBars, int steps, Func<int, double> sigmaHorizonAt)
     {
         var last = bars.Length - 1;
@@ -168,7 +167,7 @@ public static class VolatilityBand
         return ratios.ToArray();
     }
 
-    /// <summary>Linear-interpolated quantile of an ascending-sorted list.</summary>
+    /// <summary>Linear-interpolated quantile; <paramref name="sorted"/> must be ascending.</summary>
     public static double Quantile(IReadOnlyList<double> sorted, double q)
     {
         var pos = q * (sorted.Count - 1);
@@ -211,10 +210,10 @@ public static class NormalMath
         return x >= 0 ? (1 + y) / 2 : (1 - y) / 2;
     }
 
-    /// <summary>P(|Z| ≤ k) for a standard normal Z.</summary>
+    /// <summary>P(|Z| &lt;= k) for a standard normal Z.</summary>
     public static double AbsCdf(double k) => k <= 0 ? 0 : 2 * Cdf(k) - 1;
 
-    /// <summary>k such that P(|Z| ≤ k) = q, by bisection.</summary>
+    /// <summary>k such that P(|Z| &lt;= k) = q, by bisection.</summary>
     public static double InverseAbsCdf(double q)
     {
         double lo = 0, hi = 10;

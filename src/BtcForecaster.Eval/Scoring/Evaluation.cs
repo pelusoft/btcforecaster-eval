@@ -3,7 +3,7 @@ namespace BtcForecaster.Eval.Scoring;
 /// <summary>How well one range level matched reality.</summary>
 /// <param name="TargetPct">The range's level: a calibrated 90% range contains the price 90% of the time.</param>
 /// <param name="Samples">Scored forecasts that had this range.</param>
-/// <param name="EffectiveSamples">Samples ÷ overlap: roughly how many independent outcomes they amount to.</param>
+/// <param name="EffectiveSamples">Samples / overlap: roughly how many independent outcomes they amount to.</param>
 /// <param name="HitRatePct">Percent whose outcome landed inside the range (edges count as inside).</param>
 /// <param name="Margin95">How far the hit rate can drift from the target by chance (95%), in percentage points.</param>
 /// <param name="MeanWidthPct">Average full width of the range, % of the reference price.</param>
@@ -15,7 +15,7 @@ public sealed record Coverage(double TargetPct, int Samples, double EffectiveSam
 
 public sealed record DailyCoverage(DateOnly Day, int Samples, double? Hit90Pct, double? Hit50Pct);
 
-/// <summary>Coverage over the trailing <c>days</c> days ending with <paramref name="Day"/> (outcomes with target times in (end of day − days, end of day]).</summary>
+/// <summary>Coverage over the trailing <c>days</c> days ending with <paramref name="Day"/> (outcomes with target times in (end of day - days, end of day]).</summary>
 /// <param name="FullWindow">The data covers the whole window (earlier days are partial).</param>
 public sealed record RollingCoverage(DateOnly Day, int Samples, double EffectiveSamples, double? Hit90Pct, double? Margin90, double? Hit50Pct, double? Margin50, bool FullWindow);
 
@@ -35,7 +35,7 @@ public static class Evaluation
 {
     /// <summary>
     /// Scores the forecasts at one horizon. Only <see cref="ForecastRecord.IsScored"/> records count; pending and excluded ones
-    /// are ignored. Overlap defaults to horizon ÷ 5 minutes (a forecast every 5 minutes).
+    /// are ignored. Overlap defaults to horizon / 5 minutes (a forecast every 5 minutes).
     /// </summary>
     public static HorizonReport Evaluate(IEnumerable<ForecastRecord> forecasts, int horizonMinutes, int intervalMinutes = 5)
     {
@@ -73,7 +73,7 @@ public static class Evaluation
 
     /// <summary>
     /// Coverage over trailing windows of <paramref name="days"/> days, one per UTC calendar day from the first outcome to the
-    /// last. Each window holds outcomes with target times in (end of day − days, end of day], never anything later.
+    /// last. Each window holds outcomes with target times in (end of day - days, end of day], never anything later.
     /// </summary>
     public static List<RollingCoverage> Rolling(IReadOnlyList<ForecastRecord> scored, int overlap, int days)
     {

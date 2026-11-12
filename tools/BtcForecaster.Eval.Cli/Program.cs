@@ -75,7 +75,7 @@ async Task<int> Baseline()
         var slots = WalkForward.Slots(new Period(from, to), horizon, stride);
         records.AddRange(WalkForwardRunner.Run(bars, slots, horizon, model.Forecast, model.Settings.HistoryFor(horizon)));
     }
-    Console.WriteLine($"v1 baseline, {from:yyyy-MM-dd} → {to:yyyy-MM-dd}, a forecast every {stride.TotalMinutes} minutes (overlap = horizon ÷ stride)");
+    Console.WriteLine($"v1 baseline, {from:yyyy-MM-dd} to {to:yyyy-MM-dd}, a forecast every {stride.TotalMinutes} minutes (overlap = horizon / stride)");
     Console.WriteLine();
     Print(records, (int)stride.TotalMinutes);
     if (options.TryGetValue("out", out var outPath)) WriteCsv(outPath, records);
@@ -112,7 +112,7 @@ async Task<int> Compare()
             double Combined(ForecastRecord r) =>
                 (Score.IntervalScore(r.Low90!.Value, r.High90!.Value, r.ActualPrice!.Value, 90) + Score.IntervalScore(r.Low50!.Value, r.High50!.Value, r.ActualPrice!.Value, 50)) / r.ReferencePrice * 100;
             var diffs = both.Select(t => Combined(c[t]) - Combined(b[t])).ToArray();
-            var steps = (int)(horizon / VolatilityBand.BarSize);                 // lag = horizon in 5-minute steps, as in the studies
+            var steps = (int)(horizon / VolatilityBand.BarSize); // DM lag = horizon in 5-minute steps, same as the studies
             var p = DieboldMariano.PValue(diffs, steps);
             var bScore = both.Average(t => Combined(b[t]));
             var cScore = both.Average(t => Combined(c[t]));
@@ -120,13 +120,13 @@ async Task<int> Compare()
             var report = Evaluation.Evaluate(both.Select(t => c[t]), hours * 60, (int)stride.TotalMinutes);
             var months = both.GroupBy(t => t.ToString("yyyy-MM")).Select(g => g.Sum(t => Combined(b[t]) - Combined(c[t]))).ToList();
             comparisons.Add(new HorizonComparison(hours * 60, change, p, report.Range90!.IsCalibrated, report.Range50!.IsCalibrated, months));
-            Console.WriteLine($"{hours + "h",-8}{bScore,10:F3}{cScore,11:F3}{change,8:+0.00;-0.00}%{p,9:F3}  {report.Range90.HitRatePct,5:F1} (±{report.Range90.Margin95:F1}){(report.Range90.IsCalibrated ? "" : " ✘"),-6}  {report.Range50.HitRatePct,5:F1} (±{report.Range50.Margin95:F1}){(report.Range50.IsCalibrated ? "" : " ✘")}");
+            Console.WriteLine($"{hours + "h",-8}{bScore,10:F3}{cScore,11:F3}{change,8:+0.00;-0.00}%{p,9:F3}  {report.Range90.HitRatePct,5:F1} (±{report.Range90.Margin95:F1}){(report.Range90.IsCalibrated ? "" : " !"),-6}  {report.Range50.HitRatePct,5:F1} (±{report.Range50.Margin95:F1}){(report.Range50.IsCalibrated ? "" : " !")}");
         }
         if (period == split.Test && comparisons.Count > 0)
         {
             var v = rule.Evaluate(comparisons);
             Console.WriteLine();
-            Console.WriteLine($"Verdict on the holdout: rule 1 {Mark(v.Rule1)}, rule 2 {Mark(v.Rule2)}, rule 3 {Mark(v.Rule3)}, rule 4 {(v.Rule1 ? Mark(v.Rule4) : "–")} → {(v.Passes ? "PASSES" : "fails: keep the current model")}");
+            Console.WriteLine($"Verdict on the holdout: rule 1 {Mark(v.Rule1)}, rule 2 {Mark(v.Rule2)}, rule 3 {Mark(v.Rule3)}, rule 4 {(v.Rule1 ? Mark(v.Rule4) : "n/a")} => {(v.Passes ? "PASSES" : "fails, keep the current model")}");
         }
     }
     return 0;
@@ -144,10 +144,10 @@ void Print(IReadOnlyList<ForecastRecord> records, int intervalMinutes = 5)
         Console.WriteLine($"{minutes / 60 + "h",-8}{r.Samples,8:N0}{c90.EffectiveSamples,8:F1}  {Cov(c90),-20}{Cov(c50),-20}{c90.MeanWidthPct,8:F3}%{r.IntervalScorePct,8:F3}{r.IntervalScore90Pct,8:F3}{r.IntervalScore50Pct,8:F3}  {r.Misses90Below}/{r.Misses90Above}");
     }
     Console.WriteLine();
-    Console.WriteLine("Hit rates are % of outcomes inside the range; margin95 uses n_eff = n ÷ overlap. ✘ = outside its margin (not calibrated).");
+    Console.WriteLine("Hit rates are % of outcomes inside the range; margin95 uses n_eff = n / overlap. ! = outside its margin (not calibrated).");
     Console.WriteLine("IS = interval score of the 90% + 50% ranges, % of price (lower is better). Width90 = average full width of the 90% range.");
 
-    static string Cov(Coverage c) => $"{c.HitRatePct:F1} (±{c.Margin95:F1}){(c.IsCalibrated ? "" : " ✘")}";
+    static string Cov(Coverage c) => $"{c.HitRatePct:F1} (±{c.Margin95:F1}){(c.IsCalibrated ? "" : " !")}";
 }
 
 async Task<List<PriceSample>> LoadBars(DateTime from, DateTime to, BaselineSettings settings)

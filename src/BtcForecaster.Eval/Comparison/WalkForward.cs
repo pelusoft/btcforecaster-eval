@@ -4,7 +4,7 @@ namespace BtcForecaster.Eval.Comparison;
 public sealed record Period(DateTime Start, DateTime End)
 {
     public bool Contains(DateTime t) => t >= Start && t < End;
-    public override string ToString() => $"{Start:yyyy-MM-dd} → {End:yyyy-MM-dd}";
+    public override string ToString() => $"{Start:yyyy-MM-dd} to {End:yyyy-MM-dd}";
 }
 
 /// <summary>Tune on one period, then test once on a later one the choices never saw.</summary>
@@ -18,7 +18,7 @@ public static class WalkForward
 {
     /// <summary>
     /// Splits an evaluation period in two at its midpoint moved to the nearest first of a month, so no month is split between
-    /// tuning and holdout (the rule since 9 Nov 2026; e.g. 31 Dec 2025 → 28 Oct 2026 splits on 1 June 2026).
+    /// tuning and holdout (the rule since 9 Nov 2026; e.g. 2025-12-31 to 2026-10-28 splits on 2026-06-01).
     /// </summary>
     public static WalkForwardSplit Halves(DateTime start, DateTime end, bool rawMidpoint = false)
     {

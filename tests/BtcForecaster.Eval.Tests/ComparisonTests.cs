@@ -96,7 +96,7 @@ public class ComparisonTests
     [Fact]
     public void The_outside_data_study_fails_the_decision_rule()
     {
-        // A1 (+ DVOL) on the June–October holdout: −0.22% (p 0.008), −0.31% (p 0.21), +0.93% (p 0.38). Calibrated everywhere.
+        // A1 (+DVOL) on the Jun-Oct holdout: -0.22% (p 0.008), -0.31% (p 0.21), +0.93% (p 0.38). Calibrated everywhere.
         var a1 = new[]
         {
             new HorizonComparison(60, -0.22, 0.008, true, true, [1, 1, 1, 1, 1]),
